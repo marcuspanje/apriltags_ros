@@ -1,0 +1,22 @@
+<launch>
+  <arg name="camera" value="foscam"/>
+  <arg name="robot" value="scarab"/>
+  <node pkg="apriltags_ros" type="apriltag_detector_node" name="apriltag_detector" output="screen">
+    <rosparam param="tag_descriptions">[
+      {id: 0, size: 0.06, frame_id: scarab},
+      {id: 1, size: 0.06, frame_id: a_frame},
+      {id: 2, size: 0.06},
+      {id: 3, size: 0.06},
+      {id: 4, size: 0.06},
+      {id: 5, size: 0.06}]
+    </rosparam>
+    <param name="sensor_frame_id" value="$(arg camera)"/>
+    
+    <remap from="/camera_info" to="/$(arg camera)/camera_info"/>
+    <remap from="/image_rect" to="/$(arg camera)/image_rect"/>
+  </node>
+  <node pkg="apriltags_ros" type="apriltag_map_localizer" name="apriltag_map_localizer" output="screen">
+    <param name="camera" value="$(arg camera)"/>
+    <param name="robot_tag" value="$(arg robot)"/>
+  </node>
+</launch>
