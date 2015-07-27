@@ -18,6 +18,7 @@ find_package(catkin REQUIRED COMPONENTS
   cmake_modules
 )
 
+find_package(cmake_modules REQUIRED)
 find_package(Eigen REQUIRED)
 
 add_message_files(
@@ -68,6 +69,11 @@ add_executable(apriltag_detector_node src/apriltag_detector_node.cpp)
 target_link_libraries(apriltag_detector_node
   ${catkin_LIBRARIES}
   apriltag_detector
+)
+
+add_executable(apriltag_map_localizer src/apriltag_map_localizer.cpp)
+target_link_libraries(apriltag_map_localizer
+  ${catkin_LIBRARIES}
 )
 
 #############
