@@ -18,45 +18,33 @@ void printTransforms(tf::Transform transform) {
       
 }
 
-void tagsCb(const apriltags_ros::AprilTagDetectionArrayConstPtr tags, ros::NodeHandle& nh, ros::Publisher& tags_mapped_pub, ros::Publisher& tags_mapped_posearray_pub, tf::Transform& camera_to_map,  std::string& camera, std::string& robot_base, std::string& map) {
+void tagsCb(const apriltags_ros::AprilTagDetectionArrayConstPtr tags, ros::Publisher& tags_mapped_pub, ros::Publisher& tags_mapped_posearray_pub, tf::Transform& camera_to_map,  std::string& camera, std::string& robot_base, std::string& map) {
 
   apriltags_ros::AprilTagDetectionArray mapped_tags_msg;
   std::vector<apriltags_ros::AprilTagDetection> mapped_tags;
   geometry_msgs::PoseArray pose_array_msg;
   std::vector<geometry_msgs::Pose> pose_array;
+  ros::Time time_now = ros::Time::now(); //provide same time for all tags
 
-//get coords of map with in relation to map
+//convet coords of tag in camera coords to map coords
   for (size_t i = 0; i < tags->detections.size(); i++) {
     apriltags_ros::AprilTagDetection tag = tags->detections[i];
     //tag0 is the robot
     if (tag.id == 0) {
       continue;
     }
-    char buffer[10];
-    sprintf(buffer, "tag_%u", tag.id);
-    std::string tag_string(buffer);
-
+    //get tag coords in camera frame and apply transform to get map coords
     tf::Pose tag_to_camera;
     tf::poseMsgToTF(tag.pose.pose, tag_to_camera);
-    tf::Transform tag_to_map = camera_to_map * tag_to_camera; 
-    //tf::StampedTransform tag_to_map_stamped(tag_to_map, ros::Time::now(), map, tag_string); 
-    //tf::Stamped<tf::Pose> tag_pose_map(tag_to_map_stamped);
+    tf::Transform tag_to_map = tag_to_camera * camera_to_map; 
 
+    //transform is equal to pose
     geometry_msgs::PoseStamped poseStamped;
     tf::poseTFToMsg(tag_to_map, poseStamped.pose);
-/*
-    tf::Vector3 t = tag_to_map.getOrigin();
-    tf::Quaternion q = tag_to_map.getRotation();
-    poseStamped.pose.position.x = t.getX();
-    poseStamped.pose.position.y = t.getY();
-    poseStamped.pose.position.z = 0.0;
-    poseStamped.pose.orientation.w = q.getW();
-    poseStamped.pose.orientation.x = q.getAxis().getX();
-    poseStamped.pose.orientation.y = q.getAxis().getY();
-    poseStamped.pose.orientation.z = q.getAxis().getZ();
-    */
+
+    //convert to apriltag format msg 
     poseStamped.header = std_msgs::Header();
-    poseStamped.header.stamp = ros::Time::now();
+    poseStamped.header.stamp = time_now;
     poseStamped.header.frame_id = map; 
     
     apriltags_ros::AprilTagDetection mapped_tag;
@@ -65,14 +53,14 @@ void tagsCb(const apriltags_ros::AprilTagDetectionArrayConstPtr tags, ros::NodeH
     mapped_tags.push_back(mapped_tag);
     pose_array.push_back(poseStamped.pose);
   }
-
+  //publish apriltag msg and poseArray for visualization
   mapped_tags_msg.detections = mapped_tags;
+  tags_mapped_pub.publish(mapped_tags_msg);
+
   pose_array_msg.poses = pose_array;
   pose_array_msg.header = std_msgs::Header();
-  pose_array_msg.header.stamp = ros::Time::now();
+  pose_array_msg.header.stamp = time_now;
   pose_array_msg.header.frame_id = map;
-
-  tags_mapped_pub.publish(mapped_tags_msg);
   tags_mapped_posearray_pub.publish(pose_array_msg);
 
 }
@@ -104,7 +92,7 @@ int main(int argc, char **argv){
       ROS_ERROR("No transform from %s to %s", robot_base.c_str(), map.c_str());
   }
 
-  //get transfrom from map to camera by referencing tag on robot, and robot's pose
+  //get transfrom from camera to map by referencing tag on robot, and robot's pose
   tf::StampedTransform robot_tag_to_camera, robot_base_to_map;
   tl.lookupTransform(camera, robot_tag, ros::Time(0), robot_tag_to_camera);//tag on robot
   tl.lookupTransform(map, robot_base, ros::Time(0), robot_base_to_map);//robot's pose
@@ -125,9 +113,12 @@ int main(int argc, char **argv){
 
   //subscribe to tag detections 
   ROS_INFO("subscribing to %s for tag detections", tag_detections_topic.c_str());
+  //init publisher apriltag msg with pose in map coords and a poseArray for visualization
   ros::Publisher tags_pub = nh.advertise<apriltags_ros::AprilTagDetectionArray>("/tag_detections_mapped", 1);
   ros::Publisher tags_posearray_pub = nh.advertise<geometry_msgs::PoseArray>("/tag_detections_mapped_pose", 1);
-  ros::Subscriber tags_sub = nh.subscribe<apriltags_ros::AprilTagDetectionArray>(tag_detections_topic, 1, boost::bind(tagsCb, _1, nh, tags_pub, tags_posearray_pub, camera_to_map, camera, robot_base, map)); 
+
+  //init subscriber to tag detections in camera coords and pass publishers to callback
+  ros::Subscriber tags_sub = nh.subscribe<apriltags_ros::AprilTagDetectionArray>(tag_detections_topic, 1, boost::bind(tagsCb, _1, tags_pub, tags_posearray_pub, camera_to_map, camera, robot_base, map)); 
 
   ros::spin();
 
