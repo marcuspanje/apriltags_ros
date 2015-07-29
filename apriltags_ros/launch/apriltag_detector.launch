@@ -2,7 +2,7 @@
   <arg name="camera" value="foscam"/>
   <arg name="robot_tag" value="scarab"/>
   <arg name="robot_base" value="$(arg robot_tag)/base_link"/>
-  <arg name="map" value="map_hokuyo"/>
+  <arg name="origin" value="$(arg robot_tag)/odom_laser"/>
   <node pkg="apriltags_ros" type="apriltag_detector_node" name="apriltag_detector" output="screen">
     <rosparam param="tag_descriptions">[
       {id: 0, size: 0.01, frame_id: scarab},
@@ -17,10 +17,4 @@
     <remap from="/image_rect" to="/$(arg camera)/image_rect"/>
   </node>
 
-  <node pkg="apriltags_ros" type="apriltag_map_localizer" name="apriltag_map_localizer" output="screen">
-    <param name="camera" value="$(arg camera)"/>
-    <param name="robot_tag" value="$(arg robot_tag)"/>
-    <param name="robot_base" value="$(arg robot_base)"/>
-    <param name="map" value="$(arg map)"/>
-  </node>
 </launch>

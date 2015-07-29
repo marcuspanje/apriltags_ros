@@ -8,7 +8,17 @@
 #include <tf/transform_listener.h>
 #include <string>
 
-void printTransforms(tf::Transform transform) {
+void printTransform(tf::Transform transform) {
+  tf::Vector3 to = transform.getOrigin();
+  ROS_INFO("translation: %.3f %.3f %.3f", to.getX(), to.getY(), to.getZ());
+  ROS_INFO("rotation: ");
+  tf::Matrix3x3 rot = transform.getBasis();
+  for (int i = 0; i < 3; i++) {
+    tf::Vector3 v = rot.getRow(i);
+    ROS_INFO("%.3f %.3f %.3f", v.getX(), v.getY(), v.getZ());
+  }
+
+
   tf::Vector3 t = transform*tf::Vector3(0, 0, 0); 
   tf::Quaternion r = transform*tf::Quaternion(0, 0, 0, 1);
   
@@ -30,13 +40,15 @@ void tagsCb(const apriltags_ros::AprilTagDetectionArrayConstPtr tags, ros::Publi
   for (size_t i = 0; i < tags->detections.size(); i++) {
     apriltags_ros::AprilTagDetection tag = tags->detections[i];
     //tag0 is the robot
+    /*
     if (tag.id == 0) {
       continue;
     }
+    */
     //get tag coords in camera frame and apply transform to get map coords
     tf::Pose tag_to_camera;
     tf::poseMsgToTF(tag.pose.pose, tag_to_camera);
-    tf::Transform tag_to_map = tag_to_camera * camera_to_map; 
+    tf::Transform tag_to_map = camera_to_map * tag_to_camera;
 
     //transform is equal to pose
     geometry_msgs::PoseStamped poseStamped;
@@ -83,7 +95,7 @@ int main(int argc, char **argv){
 
   //transform X_to_Y means X's frame in terms of Y's frame
   tf::TransformListener tl(nh);
-  ros::Duration timeout(5.0);
+  ros::Duration timeout(10.0);
 
   if(!(tl.waitForTransform(camera, robot_tag, ros::Time(0), timeout))) {
       ROS_ERROR("No transform from %s to %s", robot_tag.c_str(), camera.c_str());
@@ -93,23 +105,46 @@ int main(int argc, char **argv){
   }
 
   //get transfrom from camera to map by referencing tag on robot, and robot's pose
-  tf::StampedTransform robot_tag_to_camera, robot_base_to_map;
-  tl.lookupTransform(camera, robot_tag, ros::Time(0), robot_tag_to_camera);//tag on robot
-  tl.lookupTransform(map, robot_base, ros::Time(0), robot_base_to_map);//robot's pose
-  tf::Transform camera_to_robot_tag = robot_tag_to_camera.inverse();
+  tf::StampedTransform robottag_to_camera, robotbase_to_map;
+  tl.lookupTransform(camera, robot_tag, ros::Time(0), robottag_to_camera);//tag on robot
+  tl.lookupTransform(map, robot_base, ros::Time(0), robotbase_to_map);//robot's pose
+ // tf::Transform camera_to_map = robot_base_to_map * robot_tag_to_camera.inverse();
+  /*
+  ROS_INFO("robot to camera transform");
+  printTransform(robot_tag_to_camera);
+  ROS_INFO("camera to robot transform");
+  printTransform(robot_tag_to_camera.inverse());
+  ROS_INFO("robot to map transform");
+  printTransform(robot_base_to_map);
+*/
+  tf::Transform camera_to_robottag = robottag_to_camera.inverse();
 
   //aright tag which is oriented 180 degs about x axis
-  
+ /* 
   tf::Transform x_180 = tf::Transform(tf::Quaternion(1, 0, 0, 0)); 
   tf::Transform y_90 = tf::Transform(tf::Quaternion(0, 0.7071, 0, 0.7071));
-  tf::Transform z_90 = tf::Transform(tf::Quaternion(0, 0, 0.7071, 0.7071));
-  tf::Transform robot_tag_to_base = y_90 * z_90 * x_180;
-/*
-  tf::Quaternion q; 
-  q.setRPY(3.1416, 1.5708, 1.5708);
-  tf::Transform robot_tag_to_base = tf::Transform(q);
 */
-  tf::Transform camera_to_map = camera_to_robot_tag * robot_tag_to_base * robot_base_to_map; 
+  tf::Transform z_minus_90 = tf::Transform(tf::Quaternion(0, 0, -0.7071, 0.7071));
+  
+  tf::Matrix3x3 robottag_to_robotbase_rot(  
+      0, 0, 1.0,
+     1.0, 0, 0,
+      0, 1.0, 0);
+  tf::Transform robottag_to_robotbase(robottag_to_robotbase_rot);
+ // robottag_to_robotbase = z_minus_90 * robottag_to_robotbase;
+  
+
+ // tf::Transform robot_tag_to_base = y_90 * z_90 * x_180;
+
+  //tf::Quaternion q; 
+  //q.setRPY(3.1416, 1.5708, 1.5708);
+ // tf::Transform robot_tag_to_base = tf::Transform(q);
+
+ // tf::Transform camera_to_map = robot_base_to_map * (robot_tag_to_base * camera_to_robot_tag); 
+  tf::Transform camera_to_map = z_minus_90 * robotbase_to_map * robottag_to_robotbase * camera_to_robottag;
+  
+  ROS_INFO("camera to map transform");
+  printTransform(camera_to_map);
 
   //subscribe to tag detections 
   ROS_INFO("subscribing to %s for tag detections", tag_detections_topic.c_str());
