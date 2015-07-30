@@ -5,7 +5,7 @@
   <arg name="map" value="map_hokuyo"/>
   <node pkg="apriltags_ros" type="apriltag_detector_node" name="apriltag_detector" output="screen">
     <rosparam param="tag_descriptions">[
-      {id: 0, size: 0.01, frame_id: scarab},
+      {id: 0, size: 0.1, frame_id: scarab},
       {id: 1, size: 0.163, frame_id: tag_1},
       {id: 2, size: 0.163},
       {id: 3, size: 0.163}
@@ -22,5 +22,6 @@
     <param name="robot_tag" value="$(arg robot_tag)"/>
     <param name="robot_base" value="$(arg robot_base)"/>
     <param name="map" value="$(arg map)"/>
+    <param name="robot_tag_size" value="0.1"/>
   </node>
 </launch>
